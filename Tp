@@ -1,0 +1,5 @@
+local ProximityPrompt = script.Parent
+ProximityPrompt.Triggered:Connect(function(Player)
+    wait(2) -- Here you can change the amount of time the system waits until you teleport to the other part after clicking E.
+    Player.Character.HumanoidRootPart.Position = game.workspace.Beachpad.Position -- Depending what your exit part is called, Change the "Entry2" to whatever your part is called.
+end)
