@@ -1,0 +1,59 @@
+local module = {}
+
+module.Admins = {
+	["Roblox User"] = "Owner",
+}
+
+module.Permissions = {
+	["Moderator"] = {
+		["Priority"] = 1,
+		["DisallowPrefixes"] = {
+			"All",
+			"Others"
+		},
+		["Permissions"] = {
+			"Kick",
+			"ChatLogs",
+			"JoinLogs",
+			"CheckBan",
+			"Message",
+			"HandTo",
+			"View",
+			"Unview"
+		}
+	},
+	["Admin"] = {
+		["Inherits"] = "Moderator",
+		["Priority"] = 2,
+		["Permissions"] = {
+			"Ban",
+			"Shutdown",
+			"TimeBan",
+			"Unban",
+			"SystemMessage",
+			"ServerLock"
+		}
+	},
+	["Owner"] = {
+		["Inherits"] = "Admin",
+		["Priority"] = 3,
+		["Permissions"] = {
+			"*"
+		}
+	}
+}
+
+module.UI = {
+	["Accent"] = Color3.fromRGB(64, 157, 130),
+	["Keybind"] = Enum.KeyCode.Semicolon,
+	["Theme"] = "Minimal Dark"
+}
+
+module.Misc = {
+	["DisableCredits"] = false,
+	-- v this only works outside Studio.
+	["AutoCreatorAdmin"] = true, -- when enabled, this automatically grants the game owner admin
+	["AutoCreatorAdminTo"] = "Owner" -- configure this if needed
+}
+
+return module
