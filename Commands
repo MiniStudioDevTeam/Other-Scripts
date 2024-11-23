@@ -1,0 +1,113 @@
+local Players = game:GetService("Players")
+local DSS = game:GetService("DataStoreService")
+local TS = game:GetService("TeleportService")
+local RS = game:GetService("ReplicatedStorage")
+local SS = game:GetService("ServerStorage")
+local MS = game:GetService("MessagingService")
+local HTTP = game:GetService("HttpService")
+local chatPromptEvent = RS.Events.PromptChatMessage
+local petModule = require(SS.Modules.Pets)
+local webhookModule = require(SS.Modules.Webhooks)
+
+
+local permUsers = {ID, ID, ID} -- Change ID to Roblox Player IDs
+
+local function postWebhook(player,cmdType,desc)
+	repeat
+		local suc,err = pcall(function()
+			webhookModule.post("commandExecuted",{["commandType"]=cmdType,["description"]=desc,["commandExecutor"]=player.Name,["executorID"]=player.UserId})
+		end)
+		if not suc then warn(err) task.wait(1) end
+	until suc
+end
+
+
+local function givePet(player,petId,petType)
+	if not petType then petType = 0 end
+	petModule.givePet(player,petId,false,petType)
+	chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Sucessfully created pet with ID: "..petId)
+	postWebhook(player,"GivePet","PetID: "..petId.."\nPetType: "..petType)
+end
+
+local function teleportToPlayer(player,userId)
+	local sessionData = DSS:GetDataStore("Session"):GetAsync(userId)
+	if not sessionData or not sessionData["jobId"] then chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Player is offline!") return end
+	TS:TeleportToPlaceInstance(game.PlaceId,sessionData["jobId"],player)
+	postWebhook(player,"Teleport","UserID: "..userId)
+end
+
+local function banPlayer(requester,userId,endTime,reason)
+	if not endTime then endTime = 10^100 end
+	if not reason then reason = "" end
+	
+	local sessionData = DSS:GetDataStore("Session"):GetAsync(userId)
+	
+	if sessionData then
+		MS:PublishAsync(sessionData["jobId"],HTTP:JSONEncode({["Type"]=1,["UserID"]=userId,["EndTime"]=endTime,["Reason"]=reason}))
+	else
+		DSS:GetDataStore("main"):UpdateAsync(userId,function(data)
+			if not data then 
+				return {["Banned"] = {["BanEndTime"] = endTime, ["BanReason"] = reason}}
+			else
+				data["Banned"]["BanEndTime"] = endTime
+				data["Banned"]["BanReason"] = reason
+				return data
+			end
+		end)
+	end
+	
+	chatPromptEvent:FireClient(requester,Color3.fromRGB(255,0,0),"Successfully banned!")
+	postWebhook(requester,"Ban","UserID: "..userId.."\nReason: "..reason.."\nEndTime: "..endTime)
+end
+
+local function getPetId(rank)
+	if rank == 1 then return 2004 end
+	if rank <= 10 then return 2003 end
+	return 2002
+end
+
+local function saveLeaderboard()
+	local topData
+	repeat
+		local suc = pcall(function()
+			topData = DSS:GetOrderedDataStore("TotalClicks"):GetSortedAsync(false,25):GetCurrentPage()
+		end)
+		if not suc then task.wait(0.5) end
+	until suc
+	
+	local finalList = {}
+	for rank,lbData in topData do
+		finalList[string.split(lbData.key,"_")[1]] = {getPetId(rank),false}
+	end
+	
+	repeat
+		local suc = pcall(function()
+			DSS:GetDataStore("main"):SetAsync("lb_save",finalList)
+		end)
+		if not suc then task.wait(0.5) end
+	until suc
+end
+
+RS:WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest").OnServerEvent:Connect(function(player,message)
+	if not table.find(permUsers,player.UserId) then return end
+	local args = string.split(message," ")
+	if args[1]:lower() == "!givepet" then
+		givePet(player,args[2],args[3])
+	elseif args[1]:lower() == "!savelb" then
+		if player.UserId ~= 3581258033 then chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Insufficient permissions!") return end
+		saveLeaderboard()
+		chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Leaderboard successfully saved!")
+	elseif args[1]:lower() == "!removelb" then
+		if player.UserId ~= 3581258033 then chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Insufficient permissions!") return end
+		DSS:GetDataStore("main"):RemoveAsync("lb_save")
+		chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Leaderboard successfully removed!")
+	elseif args[1]:lower() == "!teleport" then
+		teleportToPlayer(player,args[2])
+	elseif args[1]:lower() == "!ban" then
+		banPlayer(player,args[2],args[3],args[4])
+	elseif args[1]:lower() == "!getid" then
+		chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"User-ID: "..Players:GetUserIdFromNameAsync(args[2]))
+	elseif args[1]:lower() == "!help" then
+		chatPromptEvent:FireClient(player,Color3.fromRGB(255,0,0),"Commands:\n!ban <userid> <endTime> <reason>\n!teleport <userid>\n!givepet <petId> <petType>\n!getid <username>")
+	end
+end)
